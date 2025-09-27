@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase-browser';
 import { useRouter } from 'next/navigation';
 
 const withAuth = (WrappedComponent, requiredRole = null) => {
-  return (props) => {
+  const AuthComponent = (props) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
@@ -63,6 +63,11 @@ const withAuth = (WrappedComponent, requiredRole = null) => {
 
     return <WrappedComponent {...props} />;
   };
+
+  // ✅ FIX: Display name set karein
+  AuthComponent.displayName = `withAuth(${WrappedComponent.displayName || WrappedComponent.name || 'Component'})`;
+  
+  return AuthComponent;
 };
 
 export default withAuth;
