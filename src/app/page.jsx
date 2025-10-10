@@ -28,9 +28,9 @@ export default function HomePage() {
 
       if (profile) {
         if (profile.role === 'admin') {
-          router.push('/admin/dashboard');
+          router.push('/home');
         } else {
-          router.push(`/${profile.role}`);
+          router.push('/home');
         }
       } else {
         router.push('/login');
@@ -42,7 +42,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex items-center justify-center bg-purple-100">
       <div className="text-lg">Redirecting...</div>
     </div>
   );

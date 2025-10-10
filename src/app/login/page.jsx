@@ -33,36 +33,33 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
-
+  
     try {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: `${credentials.employee_code}@operativex.com`,
         password: credentials.password,
       });
-
+  
       if (authError) throw authError;
       const user = authData.user;
-
+  
       try {
         await ensureProfileExists(user.id, user.email);
       } catch (profileError) {
-        console.error('Profile error:', profileError);
+        console.error("Profile error:", profileError);
       }
-
-      const { roles, isAdmin } = await getUserRoles(user.id);
-
-      if (isAdmin) {
-        router.push("/admin/dashboard");
-      } else {
-        const firstRole = roles.length > 0 ? roles[0] : "printing";
-        router.push(`/${firstRole}`);
-      }
+  
+      const { roles = [], isAdmin } = await getUserRoles(user.id);
+  
+      router.push("/home");
     } catch (error) {
-      setError(error.message);
+      console.error(error);
+      setError("Invalid employee code or password. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+  
 
   if (!isMounted) return null;
 

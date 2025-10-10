@@ -17,53 +17,51 @@ export default function RoleBasedNavbar({ userRoles = [] }) {
   const pathname = usePathname();
   const { isDark } = useTheme();
 
-// Navbar ke useEffect ko yeh replace karo:
-useEffect(() => {
-  let mounted = true;
+  useEffect(() => {
+    let mounted = true;
 
-  const initialize = async () => {
-    if (!mounted) return;
-    
-    try {
-      setIsLoading(true);
-      await checkAuthAndRedirect();
+    const initialize = async () => {
+      if (!mounted) return;
       
-      // Force a small delay to ensure components are mounted
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-    } catch (error) {
-      console.error("Initialization error:", error);
-    } finally {
-      if (mounted) {
-        setIsLoading(false);
+      try {
+        setIsLoading(true);
+        await checkAuthAndRedirect();
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+      } catch (error) {
+        console.error("Initialization error:", error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    }
-  };
+    };
 
-  initialize();
+    initialize();
 
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    async (event, session) => {
-      if (!mounted || isLoggingOut) return;
-      
-      if (event === "SIGNED_OUT" || event === "USER_DELETED") {
-        setRoles([]);
-        setIsAdmin(false);
-        setUserEmail("");
-        router.push("/login");
-      } else if (event === "SIGNED_IN" && session) {
-        await fetchUserProfile(session.user.id);
-      } else if (event === "TOKEN_REFRESHED") {
-        await fetchUserData();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!mounted || isLoggingOut) return;
+        
+        if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+          setRoles([]);
+          setIsAdmin(false);
+          setUserEmail("");
+          router.push("/login");
+        } else if (event === "SIGNED_IN" && session) {
+          await fetchUserProfile(session.user.id);
+        } else if (event === "TOKEN_REFRESHED") {
+          await fetchUserData();
+        }
       }
-    }
-  );
+    );
 
-  return () => {
-    mounted = false;
-    subscription?.unsubscribe();
-  };
-}, [router, isLoggingOut]);
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, [router, isLoggingOut]);
 
   const fetchUserProfile = async (userId) => {
     try {
@@ -171,18 +169,35 @@ useEffect(() => {
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true);
-      await supabase.auth.signOut();
+      // Clear all local state first
+      setRoles([]);
+      setIsAdmin(false);
+      setUserEmail("");
+      setIsMenuOpen(false);
+      
+      // Then sign out
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Force redirect to login
       router.push("/login");
+      router.refresh(); // Force refresh the page
+      
     } catch (error) {
       console.error("Error during logout:", error);
+      // Still redirect to login even if there's an error
+      router.push("/login");
     } finally {
       setIsLoggingOut(false);
     }
   };
 
-  // Main pages to show in horizontal navbar
+  // Main pages to show in horizontal navbar - HOME ADDED FOR EVERYONE
   const mainPages = [
-    { name: "Dashboard", path: "/admin/dashboard" },
+    { name: "Home", path: "/home" },
     { name: "Job Form", path: "/main/jobForm" },
     { name: "Pre-Press", path: "/pre_press" },
     { name: "Printing", path: "/printing" },
@@ -191,6 +206,7 @@ useEffect(() => {
     { name: "Reports", path: "/reports" },
     { name: "Job Status", path: "/job_status" },
     { name: "MachineInfo", path: "/machineinfo" },
+    { name: "Admin Panel", path: "/admin/dashboard" },
   ];
 
   // Additional pages to show only in the side menu
@@ -220,19 +236,17 @@ useEffect(() => {
     machineinfo:  { name: "MachineInfo", path: "/machineinfo" },
   };
 
-  const workerPages = roles
-    .map(r => roleToPage[r])
-    .filter(Boolean);
-
+  // Worker pages - HOME ADDED AT THE BEGINNING
+  const workerPages = [
+    { name: "Home", path: "/home" }, // ← Home added for workers
+    ...roles.map(r => roleToPage[r]).filter(Boolean)
+  ];
+  
   // Pages to show in horizontal navbar
   const navbarPages = isAdmin ? mainPages : workerPages.slice(0, 7);
   
   // All pages to show in side menu
   const allMenuPages = isAdmin ? [...mainPages, ...additionalPages] : workerPages;
-
-  const panelTitle = isAdmin
-    ? "ADMIN PANEL"
-    : (roles.length === 1 ? `${(roles[0] || "").toUpperCase()} PANEL` : "WORKER PANEL");
 
   if (isLoading) {
     return (
@@ -348,7 +362,7 @@ useEffect(() => {
           : 'bg-gradient-to-r from-purple-500/90 to-blue-500/90 border-white/20 text-white'
       }`}>
         <div className="flex justify-between items-center">
-          {/* Left - Title and Menu Button */}
+          {/* Left - Logo and Menu Button Only */}
           <div className="flex items-center gap-4">
             {/* Menu Button */}
             <button
@@ -367,13 +381,10 @@ useEffect(() => {
               }`}></span>
             </button>
             
-            <span className={`text-sm font-medium px-3 py-1 rounded-full backdrop-blur-sm border ${
-              isDark
-                ? 'bg-purple-600/30 text-purple-100 border-purple-400/50'
-                : 'bg-white/20 text-white border-white/20'
-            }`}>
-              {panelTitle}
-            </span>
+            {/* Big Logo - Panel Title Removed */}
+            <div className="relative w-50 h-6 md:w-50 md:h-6">
+              Zafar Habib Packages
+            </div>
           </div>
 
           {/* Center - Links (hidden on mobile) */}
