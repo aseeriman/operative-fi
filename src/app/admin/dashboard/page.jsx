@@ -24,8 +24,10 @@ export default function AdminDashboard() {
   const { isDark } = useTheme();
 
   const availableRoles = [
-    "printing", "pasting", "lamination", 
-    "prepress", "plates", "card_cutting", "sorting"
+    "printing", "pasting", "lamination",
+    "prepress", "plates", "card_cutting", "sorting",
+    "varnish", "joint", "die_cutting", "foil",
+    "screen_printing", "embose", "double_tape", "machineinfo"
   ];
 
   useEffect(() => {
@@ -63,7 +65,6 @@ export default function AdminDashboard() {
       }
 
       setUserRoles(Array.isArray(profile.roles) ? profile.roles : []);
-
       if (!profile || profile.role !== "admin") {
         setIsAdmin(false);
         router.push("/login");
@@ -97,10 +98,9 @@ export default function AdminDashboard() {
         roles: Array.isArray(worker.roles)
           ? worker.roles
           : worker.role
-          ? [worker.role]
-          : ["printing"],
+            ? [worker.role]
+            : ["printing"],
       }));
-
       setWorkers(formattedWorkers);
     } catch (error) {
       console.error("Error loading workers:", error?.message || error);
@@ -109,15 +109,21 @@ export default function AdminDashboard() {
 
   const handleDelete = async (id) => {
     try {
-      await fetch("/api/workers", {
+      const res = await fetch("/api/workers", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || res.statusText);
+      }
+
       setWorkers(prev => prev.filter((w) => w.id !== id));
       setSuccess("Worker deleted successfully!");
     } catch (error) {
-      setError("Failed to delete worker");
+      setError("Failed to delete worker: " + error.message);
     }
   };
 
@@ -126,7 +132,7 @@ export default function AdminDashboard() {
       ...worker,
       password: "",
       roles: Array.isArray(worker.roles) ? worker.roles :
-             worker.role ? [worker.role] : ["printing"]
+        worker.role ? [worker.role] : ["printing"]
     });
   };
 
@@ -157,11 +163,9 @@ export default function AdminDashboard() {
   const handleUpdateWorker = async (e) => {
     e.preventDefault();
     if (!editingWorker) return;
-
     setLoading(true);
     setError("");
     setSuccess("");
-
     try {
       if (!editingWorker.full_name || !editingWorker.employee_code) {
         throw new Error("Name and Employee Code are required");
@@ -169,7 +173,6 @@ export default function AdminDashboard() {
       if (!editingWorker.roles || editingWorker.roles.length === 0) {
         throw new Error("At least one role must be selected");
       }
-
       const res = await fetch("/api/workers", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -181,14 +184,12 @@ export default function AdminDashboard() {
           password: editingWorker.password || undefined,
         }),
       });
-
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || res.statusText);
       }
-
       setWorkers(prev =>
-        prev.map(w => (w.id === editingWorker.id ? { ...editingWorker } : w))
+        prev.map(w => (w.id === editingWorker.id ? { ...w, ...editingWorker, password: "" } : w))
       );
       setEditingWorker(null);
       setSuccess("Worker updated successfully!");
@@ -204,7 +205,6 @@ export default function AdminDashboard() {
     setLoading(true);
     setError("");
     setSuccess("");
-
     try {
       if (!newWorker.full_name || !newWorker.employee_code || !newWorker.password) {
         throw new Error("All fields are required");
@@ -216,13 +216,20 @@ export default function AdminDashboard() {
         throw new Error("At least one role must be selected");
       }
 
+      // Check for existing employee code locally before fetching to Supabase
+      if (workers.some(worker => worker.employee_code === newWorker.employee_code)) {
+        throw new Error("Employee code already exists (local check)");
+      }
+
+      // Supabase check for existing employee code
       const { data: existingWorker } = await supabase
         .from("profiles")
         .select("employee_code")
         .eq("employee_code", newWorker.employee_code)
-        .single();
+        .maybeSingle(); // Use maybeSingle to get null if not found
+
       if (existingWorker) {
-        throw new Error("Employee code already exists");
+        throw new Error("Employee code already exists (Supabase check)");
       }
 
       const res = await fetch("/api/workers", {
@@ -260,7 +267,7 @@ export default function AdminDashboard() {
 
   if (isCheckingAuth) {
     return (
-      <PageLayout title="Admin Dashboard">
+      <PageLayout title="Admin Panel">
         <div className="flex justify-center items-center h-64">
           <p className={`${isDark ? 'text-white' : 'text-purple-900'}`}>Checking authentication...</p>
         </div>
@@ -270,7 +277,7 @@ export default function AdminDashboard() {
 
   if (!isAdmin) {
     return (
-      <PageLayout title="Admin Dashboard">
+      <PageLayout title="Admin Panel">
         <div className="flex justify-center items-center h-64">
           <p className={`${isDark ? 'text-white' : 'text-purple-900'}`}>Redirecting to login...</p>
         </div>
@@ -279,14 +286,14 @@ export default function AdminDashboard() {
   }
 
   return (
-    <PageLayout title="Admin Dashboard" userRoles={userRoles}>
+    <PageLayout title="Admin Panel" userRoles={userRoles}>
       {/* Error and Success Messages */}
       {error && (
         <div className="bg-red-400/20 backdrop-blur-sm border border-red-400/30 text-red-100 px-4 py-3 rounded-lg mb-4">
           <strong>Error:</strong> {error}
         </div>
       )}
-      
+
       {success && (
         <div className="bg-green-400/20 backdrop-blur-sm border border-green-400/30 text-green-100 px-4 py-3 rounded-lg mb-4">
           <strong>Success:</strong> {success}
@@ -301,7 +308,7 @@ export default function AdminDashboard() {
           }`}>
             {editingWorker ? "EDIT WORKER" : "ADD NEW WORKER"}
           </h2>
-          
+
           {editingWorker ? (
             <form onSubmit={handleUpdateWorker} className="space-y-4">
               <div>
@@ -314,15 +321,15 @@ export default function AdminDashboard() {
                   value={editingWorker.full_name}
                   onChange={(e) => setEditingWorker({ ...editingWorker, full_name: e.target.value })}
                   className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark 
-                      ? 'bg-white/20 border-white/30 text-white' 
+                    isDark
+                      ? 'bg-white/20 border-white/30 text-white'
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter full name"
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className={`block text-sm font-medium mb-2 ${
                   isDark ? 'text-white' : 'text-purple-900'
@@ -333,15 +340,15 @@ export default function AdminDashboard() {
                   value={editingWorker.employee_code}
                   onChange={(e) => setEditingWorker({ ...editingWorker, employee_code: e.target.value })}
                   className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark 
-                      ? 'bg-white/20 border-white/30 text-white' 
+                    isDark
+                      ? 'bg-white/20 border-white/30 text-white'
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter employee code"
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className={`block text-sm font-medium mb-2 ${
                   isDark ? 'text-white' : 'text-purple-900'
@@ -366,7 +373,7 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
-              
+
               <div>
                 <label className={`block text-sm font-medium mb-2 ${
                   isDark ? 'text-white' : 'text-purple-900'
@@ -376,15 +383,15 @@ export default function AdminDashboard() {
                   value={editingWorker.password || ""}
                   onChange={(e) => setEditingWorker({ ...editingWorker, password: e.target.value })}
                   className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark 
-                      ? 'bg-white/20 border-white/30 text-white' 
+                    isDark
+                      ? 'bg-white/20 border-white/30 text-white'
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Set new password"
                   disabled={loading}
                 />
               </div>
-              
+
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -415,15 +422,15 @@ export default function AdminDashboard() {
                   value={newWorker.full_name}
                   onChange={(e) => setNewWorker({ ...newWorker, full_name: e.target.value })}
                   className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark 
-                      ? 'bg-white/20 border-white/30 text-white' 
+                    isDark
+                      ? 'bg-white/20 border-white/30 text-white'
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter full name"
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className={`block text-sm font-medium mb-2 ${
                   isDark ? 'text-white' : 'text-purple-900'
@@ -434,15 +441,15 @@ export default function AdminDashboard() {
                   value={newWorker.employee_code}
                   onChange={(e) => setNewWorker({ ...newWorker, employee_code: e.target.value })}
                   className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark 
-                      ? 'bg-white/20 border-white/30 text-white' 
+                    isDark
+                      ? 'bg-white/20 border-white/30 text-white'
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter employee code"
                   disabled={loading}
                 />
               </div>
-              
+
               <div>
                 <label className={`block text-sm font-medium mb-2 ${
                   isDark ? 'text-white' : 'text-purple-900'
@@ -467,7 +474,7 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
-              
+
               <div>
                 <label className={`block text-sm font-medium mb-2 ${
                   isDark ? 'text-white' : 'text-purple-900'
@@ -479,15 +486,15 @@ export default function AdminDashboard() {
                   value={newWorker.password}
                   onChange={(e) => setNewWorker({ ...newWorker, password: e.target.value })}
                   className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark 
-                      ? 'bg-white/20 border-white/30 text-white' 
+                    isDark
+                      ? 'bg-white/20 border-white/30 text-white'
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Set password"
                   disabled={loading}
                 />
               </div>
-              
+
               <button
                 type="submit"
                 disabled={loading}
@@ -498,7 +505,6 @@ export default function AdminDashboard() {
             </form>
           )}
         </div>
-
         {/* Workers List */}
         <div className="bg-white/20 backdrop-blur-lg p-6 rounded-xl shadow-2xl border border-white/30">
           <h2 className={`text-xl font-bold mb-4 pb-2 border-b border-white/30 ${
@@ -506,7 +512,7 @@ export default function AdminDashboard() {
           }`}>
             WORKERS LIST ({workers.length})
           </h2>
-          
+
           {workers.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-white/30">
               <table className="min-w-full border-collapse">
@@ -514,13 +520,13 @@ export default function AdminDashboard() {
                   <tr className="bg-white/30 backdrop-blur-sm">
                     <th className={`px-4 py-3 text-left font-medium ${
                       isDark ? 'text-white' : 'text-purple-900'
-                    }`}>NAME</th>
+                    }`}>Full Name</th>
                     <th className={`px-4 py-3 text-left font-medium ${
                       isDark ? 'text-white' : 'text-purple-900'
-                    }`}>EMP CODE</th>
+                    }`}>Employee Code</th>
                     <th className={`px-4 py-3 text-left font-medium ${
                       isDark ? 'text-white' : 'text-purple-900'
-                    }`}>ROLES</th>
+                    }`}>Roles</th>
                     <th className={`px-4 py-3 text-left font-medium ${
                       isDark ? 'text-white' : 'text-purple-900'
                     }`}>Actions</th>
@@ -533,7 +539,8 @@ export default function AdminDashboard() {
                         isDark ? 'text-white' : 'text-purple-900'
                       }`}>
                         {worker.full_name || worker.employee_code}
-                      </td>                      
+                      </td>
+
                       <td className={`px-4 py-3 ${
                         isDark ? 'text-white/90' : 'text-purple-900/90'
                       }`}>{worker.employee_code}</td>
@@ -542,9 +549,9 @@ export default function AdminDashboard() {
                       }`}>
                         <div className="flex flex-wrap gap-1">
                           {worker.roles && worker.roles.map((role, index) => (
-                            <span 
-                              key={index} 
-                              className="bg-purple-500/20 text-purple-100 text-xs font-medium px-2 py-1 rounded border border-purple-400/30 backdrop-blur-sm"
+                            <span
+                              key={index}
+                              className="inline-block bg-purple-900/20 text-purple-100 text-xs font-medium px-3 py-1 rounded border border-purple-400/30 backdrop-blur-sm whitespace-nowrap min-w-[100px] text-center"
                             >
                               {role.replace('_', ' ')}
                             </span>
