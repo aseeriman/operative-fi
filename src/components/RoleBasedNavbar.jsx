@@ -250,7 +250,7 @@ export default function RoleBasedNavbar({ userRoles = [] }) {
 
   if (isLoading) {
     return (
-      <div className={`py-3 px-4 shadow-lg relative z-20 backdrop-blur-md border-b ${
+      <div className={`py-2 px-3 shadow-lg relative z-20 backdrop-blur-md border-b ${
         isDark
           ? 'bg-gradient-to-r from-purple-900/90 to-gray-900/90 border-purple-500/30 text-white'
           : 'bg-gradient-to-r from-purple-500/90 to-blue-500/90 border-white/20 text-white'
@@ -264,7 +264,7 @@ export default function RoleBasedNavbar({ userRoles = [] }) {
 
   if (!isAdmin && roles.length === 0) {
     return (
-      <div className={`py-3 px-4 shadow-lg relative z-20 backdrop-blur-md border-b ${
+      <div className={`py-2 px-3 shadow-lg relative z-20 backdrop-blur-md border-b ${
         isDark
           ? 'bg-gradient-to-r from-purple-900/90 to-gray-900/90 border-purple-500/30 text-white'
           : 'bg-gradient-to-r from-purple-500/90 to-blue-500/90 border-white/20 text-white'
@@ -356,44 +356,44 @@ export default function RoleBasedNavbar({ userRoles = [] }) {
       </div>
       
       {/* Main Navbar */}
-      <div className={`py-3 px-4 relative z-20 shadow-lg border-b backdrop-blur-md ${
+      <div className={`py-1 px-2 relative z-20 shadow-lg border-b backdrop-blur-md ${
         isDark
           ? 'bg-gradient-to-r from-purple-900/90 to-gray-900/90 border-purple-500/30 text-white'
           : 'bg-gradient-to-r from-purple-500/90 to-blue-500/90 border-white/20 text-white'
       }`}>
         <div className="flex justify-between items-center">
           {/* Left - Logo and Menu Button Only */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {/* Menu Button */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 rounded-lg hover:bg-white/20 flex flex-col justify-center items-center w-10 h-10 transition-all duration-200 border backdrop-blur-sm"
+              className="p-1 rounded-lg hover:bg-white/20 flex flex-col justify-center items-center w-8 h-8 transition-all duration-200 border backdrop-blur-sm"
               aria-label="Menu"
             >
-              <span className={`block h-0.5 w-6 mb-1.5 transition-transform ${
+              <span className={`block h-0.5 w-4 mb-1 transition-transform ${
                 isDark ? 'bg-purple-200' : 'bg-white'
               }`}></span>
-              <span className={`block h-0.5 w-6 mb-1.5 ${
+              <span className={`block h-0.5 w-4 mb-1 ${
                 isDark ? 'bg-purple-200' : 'bg-white'
               }`}></span>
-              <span className={`block h-0.5 w-6 ${
+              <span className={`block h-0.5 w-4 ${
                 isDark ? 'bg-purple-200' : 'bg-white'
               }`}></span>
             </button>
             
             {/* Big Logo - Panel Title Removed */}
-            <div className="relative w-50 h-6 md:w-50 md:h-6">
+            <div className="text-sm font-semibold">
               Zafar Habib Packages
             </div>
           </div>
 
           {/* Center - Links (hidden on mobile) */}
-          <div className="hidden md:flex gap-2 flex-wrap">
+          <div className="hidden md:flex gap-1 flex-wrap">
             {navbarPages.map((page) => (
               <Link
                 key={page.path}
                 href={page.path}
-                className={`px-4 py-1.5 rounded-full text-sm transition-all duration-200 border backdrop-blur-sm ${
+                className={`px-3 py-1 rounded-full text-xs transition-all duration-200 border backdrop-blur-sm ${
                   pathname === page.path
                     ? isDark
                       ? "bg-purple-500 text-white font-medium shadow-lg border-purple-400"
@@ -409,11 +409,11 @@ export default function RoleBasedNavbar({ userRoles = [] }) {
           </div>
 
           {/* Right - Theme Toggle + user + logout */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Theme Toggle */}
             <ThemeToggle />
             
-            <span className={`text-xs md:inline px-3 py-1 rounded-full backdrop-blur-sm border ${
+            <span className={`text-xs md:inline px-2 py-0.5 rounded-full backdrop-blur-sm border ${
               isDark
                 ? 'bg-purple-600/30 text-purple-100 border-purple-400/50'
                 : 'bg-white/20 text-white border-white/20'
@@ -424,7 +424,7 @@ export default function RoleBasedNavbar({ userRoles = [] }) {
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className={`px-4 py-1.5 rounded-full text-sm transition-all duration-200 border backdrop-blur-sm ${
+              className={`px-3 py-1 rounded-full text-xs transition-all duration-200 border backdrop-blur-sm ${
                 isLoggingOut 
                   ? "bg-gray-400/50 cursor-not-allowed text-gray-300" 
                   : isDark

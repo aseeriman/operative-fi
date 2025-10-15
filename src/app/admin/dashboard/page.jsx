@@ -24,9 +24,9 @@ export default function AdminDashboard() {
   const { isDark } = useTheme();
 
   const availableRoles = [
-    "printing", "pasting", "lamination",
+    "printing", "pasting", "lamination", 
     "prepress", "plates", "card_cutting", "sorting",
-    "varnish", "joint", "die_cutting", "foil",
+    "varnish", "joint", "die_cutting", "foil", 
     "screen_printing", "embose", "double_tape", "machineinfo"
   ];
 
@@ -65,6 +65,7 @@ export default function AdminDashboard() {
       }
 
       setUserRoles(Array.isArray(profile.roles) ? profile.roles : []);
+
       if (!profile || profile.role !== "admin") {
         setIsAdmin(false);
         router.push("/login");
@@ -98,9 +99,10 @@ export default function AdminDashboard() {
         roles: Array.isArray(worker.roles)
           ? worker.roles
           : worker.role
-            ? [worker.role]
-            : ["printing"],
+          ? [worker.role]
+          : ["printing"],
       }));
+
       setWorkers(formattedWorkers);
     } catch (error) {
       console.error("Error loading workers:", error?.message || error);
@@ -109,21 +111,15 @@ export default function AdminDashboard() {
 
   const handleDelete = async (id) => {
     try {
-      const res = await fetch("/api/workers", {
+      await fetch("/api/workers", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || res.statusText);
-      }
-
       setWorkers(prev => prev.filter((w) => w.id !== id));
       setSuccess("Worker deleted successfully!");
     } catch (error) {
-      setError("Failed to delete worker: " + error.message);
+      setError("Failed to delete worker");
     }
   };
 
@@ -132,7 +128,7 @@ export default function AdminDashboard() {
       ...worker,
       password: "",
       roles: Array.isArray(worker.roles) ? worker.roles :
-        worker.role ? [worker.role] : ["printing"]
+             worker.role ? [worker.role] : ["printing"]
     });
   };
 
@@ -163,9 +159,11 @@ export default function AdminDashboard() {
   const handleUpdateWorker = async (e) => {
     e.preventDefault();
     if (!editingWorker) return;
+
     setLoading(true);
     setError("");
     setSuccess("");
+
     try {
       if (!editingWorker.full_name || !editingWorker.employee_code) {
         throw new Error("Name and Employee Code are required");
@@ -173,6 +171,7 @@ export default function AdminDashboard() {
       if (!editingWorker.roles || editingWorker.roles.length === 0) {
         throw new Error("At least one role must be selected");
       }
+
       const res = await fetch("/api/workers", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -184,12 +183,14 @@ export default function AdminDashboard() {
           password: editingWorker.password || undefined,
         }),
       });
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || res.statusText);
       }
+
       setWorkers(prev =>
-        prev.map(w => (w.id === editingWorker.id ? { ...w, ...editingWorker, password: "" } : w))
+        prev.map(w => (w.id === editingWorker.id ? { ...editingWorker } : w))
       );
       setEditingWorker(null);
       setSuccess("Worker updated successfully!");
@@ -205,6 +206,7 @@ export default function AdminDashboard() {
     setLoading(true);
     setError("");
     setSuccess("");
+
     try {
       if (!newWorker.full_name || !newWorker.employee_code || !newWorker.password) {
         throw new Error("All fields are required");
@@ -216,20 +218,13 @@ export default function AdminDashboard() {
         throw new Error("At least one role must be selected");
       }
 
-      // Check for existing employee code locally before fetching to Supabase
-      if (workers.some(worker => worker.employee_code === newWorker.employee_code)) {
-        throw new Error("Employee code already exists (local check)");
-      }
-
-      // Supabase check for existing employee code
       const { data: existingWorker } = await supabase
         .from("profiles")
         .select("employee_code")
         .eq("employee_code", newWorker.employee_code)
-        .maybeSingle(); // Use maybeSingle to get null if not found
-
+        .single();
       if (existingWorker) {
-        throw new Error("Employee code already exists (Supabase check)");
+        throw new Error("Employee code already exists");
       }
 
       const res = await fetch("/api/workers", {
@@ -293,26 +288,26 @@ export default function AdminDashboard() {
           <strong>Error:</strong> {error}
         </div>
       )}
-
+      
       {success && (
         <div className="bg-green-400/20 backdrop-blur-sm border border-green-400/30 text-green-100 px-4 py-3 rounded-lg mb-4">
           <strong>Success:</strong> {success}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Add/Edit Worker Form */}
-        <div className="bg-white/20 backdrop-blur-lg p-6 rounded-xl shadow-2xl border border-white/30">
-          <h2 className={`text-xl font-bold mb-4 pb-2 border-b border-white/30 ${
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Add/Edit Worker Form - Compact */}
+        <div className="bg-white/20 backdrop-blur-lg p-4 rounded-xl shadow-2xl border border-white/30">
+          <h2 className={`text-lg font-bold mb-3 pb-2 border-b border-white/30 ${
             isDark ? 'text-white' : 'text-purple-900'
           }`}>
             {editingWorker ? "EDIT WORKER" : "ADD NEW WORKER"}
           </h2>
-
+          
           {editingWorker ? (
-            <form onSubmit={handleUpdateWorker} className="space-y-4">
+            <form onSubmit={handleUpdateWorker} className="space-y-3">
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Full Name *</label>
                 <input
@@ -320,18 +315,18 @@ export default function AdminDashboard() {
                   required
                   value={editingWorker.full_name}
                   onChange={(e) => setEditingWorker({ ...editingWorker, full_name: e.target.value })}
-                  className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark
-                      ? 'bg-white/20 border-white/30 text-white'
+                  className={`w-full backdrop-blur-sm border rounded px-2 py-1.5 text-sm placeholder-white/70 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter full name"
                   disabled={loading}
                 />
               </div>
-
+              
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Employee Code *</label>
                 <input
@@ -339,21 +334,21 @@ export default function AdminDashboard() {
                   required
                   value={editingWorker.employee_code}
                   onChange={(e) => setEditingWorker({ ...editingWorker, employee_code: e.target.value })}
-                  className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark
-                      ? 'bg-white/20 border-white/30 text-white'
+                  className={`w-full backdrop-blur-sm border rounded px-2 py-1.5 text-sm placeholder-white/70 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter employee code"
                   disabled={loading}
                 />
               </div>
-
+              
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Roles *</label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-1 mt-1 max-h-48 overflow-y-auto">
                   {availableRoles.map((role) => (
                     <div key={role} className="flex items-center">
                       <input
@@ -361,10 +356,10 @@ export default function AdminDashboard() {
                         id={`edit-${role}`}
                         checked={editingWorker.roles.includes(role)}
                         onChange={() => toggleRole(role, true)}
-                        className="h-4 w-4 text-purple-500 focus:ring-purple-500 border-white/30 bg-white/20 rounded backdrop-blur-sm"
+                        className="h-3 w-3 text-purple-500 focus:ring-purple-500 border-white/30 bg-white/20 rounded backdrop-blur-sm"
                         disabled={loading}
                       />
-                      <label htmlFor={`edit-${role}`} className={`ml-2 block text-sm capitalize ${
+                      <label htmlFor={`edit-${role}`} className={`ml-1 block text-xs capitalize ${
                         isDark ? 'text-white' : 'text-purple-900'
                       }`}>
                         {role.replace('_', ' ')}
@@ -373,30 +368,30 @@ export default function AdminDashboard() {
                   ))}
                 </div>
               </div>
-
+              
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Password (leave blank to keep current)</label>
                 <input
                   type="password"
                   value={editingWorker.password || ""}
                   onChange={(e) => setEditingWorker({ ...editingWorker, password: e.target.value })}
-                  className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark
-                      ? 'bg-white/20 border-white/30 text-white'
+                  className={`w-full backdrop-blur-sm border rounded px-2 py-1.5 text-sm placeholder-white/70 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Set new password"
                   disabled={loading}
                 />
               </div>
-
-              <div className="flex gap-2">
+              
+              <div className="flex gap-2 pt-2">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-medium py-2 rounded-lg hover:from-purple-600 hover:to-blue-600 disabled:from-purple-300 disabled:to-blue-300 transition duration-200 shadow-lg"
+                  className="flex-1 bg-gradient-to-r from-purple-500 to-blue-500 text-white text-sm font-medium py-1.5 rounded hover:from-purple-600 hover:to-blue-600 disabled:from-purple-300 disabled:to-blue-300 transition duration-200 shadow-lg"
                 >
                   {loading ? "UPDATING..." : "UPDATE WORKER"}
                 </button>
@@ -404,16 +399,16 @@ export default function AdminDashboard() {
                   type="button"
                   onClick={handleCancelEdit}
                   disabled={loading}
-                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 text-white font-medium py-2 rounded-lg hover:from-gray-700 hover:to-gray-800 disabled:from-gray-400 disabled:to-gray-500 transition duration-200 shadow-lg"
+                  className="flex-1 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-sm font-medium py-1.5 rounded hover:from-gray-700 hover:to-gray-800 disabled:from-gray-400 disabled:to-gray-500 transition duration-200 shadow-lg"
                 >
                   CANCEL
                 </button>
               </div>
             </form>
           ) : (
-            <form onSubmit={handleAddWorker} className="space-y-4">
+            <form onSubmit={handleAddWorker} className="space-y-3">
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Full Name *</label>
                 <input
@@ -421,18 +416,18 @@ export default function AdminDashboard() {
                   required
                   value={newWorker.full_name}
                   onChange={(e) => setNewWorker({ ...newWorker, full_name: e.target.value })}
-                  className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark
-                      ? 'bg-white/20 border-white/30 text-white'
+                  className={`w-full backdrop-blur-sm border rounded px-2 py-1.5 text-sm placeholder-white/70 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter full name"
                   disabled={loading}
                 />
               </div>
-
+              
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Employee Code *</label>
                 <input
@@ -440,21 +435,21 @@ export default function AdminDashboard() {
                   required
                   value={newWorker.employee_code}
                   onChange={(e) => setNewWorker({ ...newWorker, employee_code: e.target.value })}
-                  className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark
-                      ? 'bg-white/20 border-white/30 text-white'
+                  className={`w-full backdrop-blur-sm border rounded px-2 py-1.5 text-sm placeholder-white/70 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Enter employee code"
                   disabled={loading}
                 />
               </div>
-
+              
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Roles *</label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-1 mt-1 max-h-48 overflow-y-auto">
                   {availableRoles.map((role) => (
                     <div key={role} className="flex items-center">
                       <input
@@ -462,21 +457,21 @@ export default function AdminDashboard() {
                         id={`new-${role}`}
                         checked={newWorker.roles.includes(role)}
                         onChange={() => toggleRole(role, false)}
-                        className="h-4 w-4 text-purple-500 focus:ring-purple-500 border-white/30 bg-white/20 rounded backdrop-blur-sm"
+                        className="h-3 w-3 text-purple-500 focus:ring-purple-500 border-white/30 bg-white/20 rounded backdrop-blur-sm"
                         disabled={loading}
                       />
-                      <label htmlFor={`new-${role}`} className={`ml-2 block text-sm capitalize ${
+                      <label htmlFor={`new-${role}`} className={`ml-1 block text-xs capitalize ${
                         isDark ? 'text-white' : 'text-purple-900'
                       }`}>
                         {role.replace('_', ' ')}
                       </label>
                     </div>
-                  ))}
+                  ))} 
                 </div>
               </div>
-
+              
               <div>
-                <label className={`block text-sm font-medium mb-2 ${
+                <label className={`block text-xs font-medium mb-1 ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>Password * (min. 6 characters)</label>
                 <input
@@ -485,104 +480,106 @@ export default function AdminDashboard() {
                   minLength={6}
                   value={newWorker.password}
                   onChange={(e) => setNewWorker({ ...newWorker, password: e.target.value })}
-                  className={`w-full backdrop-blur-sm border rounded-lg px-3 py-2 placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 ${
-                    isDark
-                      ? 'bg-white/20 border-white/30 text-white'
+                  className={`w-full backdrop-blur-sm border rounded px-2 py-1.5 text-sm placeholder-white/70 focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500 ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Set password"
                   disabled={loading}
                 />
               </div>
-
+              
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-bold font-medium py-2 rounded-lg hover:from-purple-600 hover:to-pink-600 disabled:from-purple-300 disabled:to-pink-300 transition duration-200 shadow-lg"
+                className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-medium py-1.5 rounded hover:from-purple-600 hover:to-pink-600 disabled:from-purple-300 disabled:to-pink-300 transition duration-200 shadow-lg"
               >
                 {loading ? "ADDING WORKER..." : "ADD WORKER"}
               </button>
             </form>
           )}
         </div>
-        {/* Workers List */}
-        <div className="bg-white/20 backdrop-blur-lg p-6 rounded-xl shadow-2xl border border-white/30">
-          <h2 className={`text-xl font-bold mb-4 pb-2 border-b border-white/30 ${
+
+        {/* Workers List with Scroll */}
+        <div className="bg-white/20 backdrop-blur-lg p-4 rounded-xl shadow-2xl border border-white/30">
+          <h2 className={`text-lg font-bold mb-3 pb-2 border-b border-white/30 ${
             isDark ? 'text-white' : 'text-purple-900'
           }`}>
             WORKERS LIST ({workers.length})
           </h2>
-
+          
           {workers.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-white/30">
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="bg-white/30 backdrop-blur-sm">
-                    <th className={`px-4 py-3 text-left font-medium ${
-                      isDark ? 'text-white' : 'text-purple-900'
-                    }`}>Full Name</th>
-                    <th className={`px-4 py-3 text-left font-medium ${
-                      isDark ? 'text-white' : 'text-purple-900'
-                    }`}>Employee Code</th>
-                    <th className={`px-4 py-3 text-left font-medium ${
-                      isDark ? 'text-white' : 'text-purple-900'
-                    }`}>Roles</th>
-                    <th className={`px-4 py-3 text-left font-medium ${
-                      isDark ? 'text-white' : 'text-purple-900'
-                    }`}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/20">
-                  {workers.map((worker) => (
-                    <tr key={worker.id} className="hover:bg-white/10">
-                      <td className={`px-4 py-3 font-medium ${
+              <div className="max-h-96 overflow-y-auto">
+                <table className="min-w-full border-collapse">
+                  <thead className="sticky top-0">
+                    <tr className="bg-white/30 backdrop-blur-sm">
+                      <th className={`px-3 py-2 text-left text-xs font-medium ${
                         isDark ? 'text-white' : 'text-purple-900'
-                      }`}>
-                        {worker.full_name || worker.employee_code}
-                      </td>
-
-                      <td className={`px-4 py-3 ${
-                        isDark ? 'text-white/90' : 'text-purple-900/90'
-                      }`}>{worker.employee_code}</td>
-                      <td className={`px-4 py-3 ${
-                        isDark ? 'text-white/90' : 'text-purple-900/90'
-                      }`}>
-                        <div className="flex flex-wrap gap-1">
-                          {worker.roles && worker.roles.map((role, index) => (
-                            <span
-                              key={index}
-                              className="inline-block bg-purple-900/20 text-purple-100 text-xs font-medium px-3 py-1 rounded border border-purple-400/30 backdrop-blur-sm whitespace-nowrap min-w-[100px] text-center"
-                            >
-                              {role.replace('_', ' ')}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="py-2 px-3 flex gap-2">
-                        <button
-                          onClick={() => handleEdit(worker)}
-                          className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-3 py-1.5 rounded text-sm hover:from-yellow-600 hover:to-amber-600 shadow-lg"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(worker.id)}
-                          className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-3 py-1.5 rounded text-sm hover:from-red-600 hover:to-pink-600 shadow-lg"
-                        >
-                          Delete
-                        </button>
-                      </td>
+                      }`}>Full Name</th>
+                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                        isDark ? 'text-white' : 'text-purple-900'
+                      }`}>Emp Code</th>
+                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                        isDark ? 'text-white' : 'text-purple-900'
+                      }`}>Roles</th>
+                      <th className={`px-3 py-2 text-left text-xs font-medium ${
+                        isDark ? 'text-white' : 'text-purple-900'
+                      }`}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-white/20">
+                    {workers.map((worker) => (
+                      <tr key={worker.id} className="hover:bg-white/10">
+                        <td className={`px-3 py-2 text-xs font-medium ${
+                          isDark ? 'text-white' : 'text-purple-900'
+                        }`}>
+                          {worker.full_name || worker.employee_code}
+                        </td>                      
+                        <td className={`px-3 py-2 text-xs ${
+                          isDark ? 'text-white/90' : 'text-purple-900/90'
+                        }`}>{worker.employee_code}</td>
+                        <td className={`px-3 py-2 text-xs ${
+                          isDark ? 'text-white/90' : 'text-purple-900/90'
+                        }`}>
+                          <div className="flex flex-wrap gap-1">
+                            {worker.roles && worker.roles.map((role, index) => (
+                              <span 
+                                key={index} 
+                                className="inline-block bg-purple-900/20 text-purple-100 text-xs font-medium px-2 py-0.5 rounded border border-purple-400/30 backdrop-blur-sm whitespace-nowrap min-w-[80px] text-center"
+                              >
+                                {role.replace('_', ' ')}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-1 px-2 flex gap-1">
+                          <button
+                            onClick={() => handleEdit(worker)}
+                            className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-2 py-1 rounded text-xs hover:from-yellow-600 hover:to-amber-600 shadow-lg"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(worker.id)}
+                            className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-2 py-1 rounded text-xs hover:from-red-600 hover:to-pink-600 shadow-lg"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
-            <div className={`text-center py-8 ${
+            <div className={`text-center py-6 ${
               isDark ? 'text-white/70' : 'text-purple-900/70'
             }`}>
-              <p>No workers found</p>
-              <p className="text-sm mt-1">Add workers using the form</p>
+              <p className="text-sm">No workers found</p>
+              <p className="text-xs mt-1">Add workers using the form</p>
             </div>
           )}
         </div>
