@@ -85,10 +85,17 @@ export default function JobCardForm() {
   const [selectedTasks, setSelectedTasks] = useState({});
   const [userUID, setUserUID] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [errors, setErrors] = useState({});
   
   const router = useRouter();
   const { isDark } = useTheme();
   const subJobsTableRef = useRef(null);
+
+  // Define mutually exclusive groups
+  const exclusiveGroups = {
+    lamination: ["Lamination: Matte", "Lamination: Shine"],
+    varnish: ["Varnish: Matte", "Varnish: Shine"]
+  };
 
   // Load machines
   useEffect(() => {
@@ -179,18 +186,71 @@ export default function JobCardForm() {
   };
 
   const handleTaskChange = (taskName) => {
-    setSelectedTasks(prev => ({
-      ...prev,
-      [taskName]: !prev[taskName]
-    }));
+    setSelectedTasks(prev => {
+      const newSelectedTasks = { ...prev };
+      
+      // Check which exclusive group this task belongs to
+      let currentGroup = null;
+      for (const [group, tasks] of Object.entries(exclusiveGroups)) {
+        if (tasks.includes(taskName)) {
+          currentGroup = group;
+          break;
+        }
+      }
+      
+      if (currentGroup) {
+        // If this task is being selected, uncheck all other tasks in the same group
+        if (!prev[taskName]) {
+          exclusiveGroups[currentGroup].forEach(task => {
+            if (task !== taskName) {
+              newSelectedTasks[task] = false;
+            }
+          });
+        }
+      }
+      
+      // Toggle the current task
+      newSelectedTasks[taskName] = !prev[taskName];
+      return newSelectedTasks;
+    });
+  };
+
+  // Check if a task should be disabled
+  const isTaskDisabled = (taskName) => {
+    for (const [group, tasks] of Object.entries(exclusiveGroups)) {
+      if (tasks.includes(taskName)) {
+        // Check if any other task in the same group is selected
+        const otherSelected = tasks.some(task => 
+          task !== taskName && selectedTasks[task]
+        );
+        return otherSelected;
+      }
+    }
+    return false;
   };
 
   const toggleMachine = (machineId) => {
-    setSelectedMachines((prev) =>
-      prev.includes(machineId)
+    setSelectedMachines((prev) => {
+      const newSelectedMachines = prev.includes(machineId)
         ? prev.filter((id) => id !== machineId)
-        : [...prev, machineId]
-    );
+        : [...prev, machineId];
+      
+      // Auto-check the Printing checkbox if machines are selected
+      if (newSelectedMachines.length > 0 && !formData.Printing) {
+        setFormData(prevForm => ({
+          ...prevForm,
+          Printing: true
+        }));
+      } else if (newSelectedMachines.length === 0 && formData.Printing) {
+        // Uncheck if no machines are selected
+        setFormData(prevForm => ({
+          ...prevForm,
+          Printing: false
+        }));
+      }
+      
+      return newSelectedMachines;
+    });
   };
 
   const handleChange = (e) => {
@@ -202,6 +262,18 @@ export default function JobCardForm() {
 
     if (name === "Printing" && type === "checkbox") {
       setShowPrintingModal(checked);
+      // If unchecking printing, clear selected machines
+      if (!checked) {
+        setSelectedMachines([]);
+      }
+    }
+
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ""
+      }));
     }
   };
 
@@ -213,29 +285,89 @@ export default function JobCardForm() {
     }));
   };
 
-  const handleMachineFormSubmit = (e) => {
+  const handleMachineFormSubmit = async (e) => {
     e.preventDefault();
-    const newMachine = {
-      id: machineFormData.name,
-      description: machineFormData.description,
-      size: machineFormData.size,
-      capacity: machineFormData.capacity,
-      days: machineFormData.availableDays,
-    };
-    setMachines((prev) => [...prev, newMachine]);
-    setShowMachineForm(false);
-    setMachineFormData({
-      name: "",
-      size: "",
-      capacity: "",
-      description: "",
-      availableDays: "",
-    });
-    console.log("New Machine Added:", newMachine);
+    try {
+      const { data, error } = await supabase
+        .from("machines")
+        .insert([
+          {
+            name: machineFormData.name,
+            size: machineFormData.size,
+            capacity: machineFormData.capacity,
+            description: machineFormData.description,
+            available_days: machineFormData.availableDays,
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      // Refresh machines list
+      await loadMachines();
+      
+      setShowMachineForm(false);
+      setMachineFormData({
+        name: "",
+        size: "",
+        capacity: "",
+        description: "",
+        availableDays: "",
+      });
+      console.log("New Machine Added:", data[0]);
+    } catch (error) {
+      console.error("Error adding machine:", error);
+      alert("Error adding machine: " + error.message);
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    // Required fields validation
+    if (!formData.jobId.trim()) newErrors.jobId = "Job ID is required";
+    if (!formData.customer.trim()) newErrors.customer = "Customer name is required";
+    if (!formData.startDate) newErrors.startDate = "Start date is required";
+    if (!formData.requiredDate) newErrors.requiredDate = "Required date is required";
+
+    // Date validation
+    if (formData.startDate && formData.requiredDate) {
+      const start = new Date(formData.startDate);
+      const required = new Date(formData.requiredDate);
+      if (start > required) {
+        newErrors.requiredDate = "Required date cannot be before start date";
+      }
+    }
+
+    // Sub job validation
+    if (subJobs.length === 0) {
+      newErrors.subJobs = "Please add at least one sub job";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validateSubJob = () => {
+    const newErrors = {};
+
+    if (!formData.color.trim()) newErrors.color = "Color is required";
+    if (!formData.cardSize.trim()) newErrors.cardSize = "Card size is required";
+    if (!formData.cardQty || parseInt(formData.cardQty) <= 0) newErrors.cardQty = "Valid card quantity is required";
+    if (!formData.itemQty || parseInt(formData.itemQty) <= 0) newErrors.itemQty = "Valid item quantity is required";
+    if (!formData.description.trim()) newErrors.description = "Description is required";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleAddSubJob = (e) => {
     e.preventDefault();
+    
+    if (!validateSubJob()) {
+      return;
+    }
+
     const subJobDetails = {
       subJobId: formData.subJobId,
       color: formData.color,
@@ -267,10 +399,12 @@ export default function JobCardForm() {
       cardQty: "",
       itemQty: "",
       description: "",
+      Printing: false,
     }));
     
     setSelectedTasks({});
     setSelectedMachines([]);
+    setErrors({});
     
     setTimeout(() => {
       if (subJobsTableRef.current) {
@@ -297,6 +431,7 @@ export default function JobCardForm() {
       cardQty: subJobToEdit.cardQty.toString(),
       itemQty: subJobToEdit.itemQty.toString(),
       description: subJobToEdit.description,
+      Printing: subJobToEdit.machine_id && subJobToEdit.machine_id.length > 0,
     }));
     setSelectedTasks(subJobToEdit.selectedTasks || {});
     setSelectedMachines(subJobToEdit.machine_id ? [...subJobToEdit.machine_id] : []);
@@ -305,6 +440,12 @@ export default function JobCardForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      alert("Please complete the job card form properly before submitting");
+      return;
+    }
+
     try {
       const requestData = {
         job_id: formData.jobId,
@@ -354,6 +495,8 @@ export default function JobCardForm() {
       });
       setSubJobs([]);
       setSelectedTasks({});
+      setSelectedMachines([]);
+      setErrors({});
   
     } catch (error) {
       console.error("Error submitting job card:", error);
@@ -449,7 +592,7 @@ export default function JobCardForm() {
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Job ID
+                    Job ID *
                   </label>
                   <input
                     name="jobId"
@@ -461,17 +604,20 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.jobId ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     placeholder="Enter Job ID"
                     required
                   />
+                  {errors.jobId && (
+                    <p className="text-red-500 text-sm mt-1">{errors.jobId}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Customer
+                    Customer *
                   </label>
                   <input
                     name="customer"
@@ -483,17 +629,20 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.customer ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     placeholder="Enter Customer Name"
                     required
                   />
+                  {errors.customer && (
+                    <p className="text-red-500 text-sm mt-1">{errors.customer}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Start Date
+                    Start Date *
                   </label>
                   <input
                     name="startDate"
@@ -504,16 +653,19 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.startDate ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     required
                   />
+                  {errors.startDate && (
+                    <p className="text-red-500 text-sm mt-1">{errors.startDate}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Required Date
+                    Required Date *
                   </label>
                   <input
                     name="requiredDate"
@@ -524,9 +676,12 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.requiredDate ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     required
                   />
+                  {errors.requiredDate && (
+                    <p className="text-red-500 text-sm mt-1">{errors.requiredDate}</p>
+                  )}
                 </div>
               </div>
 
@@ -560,7 +715,7 @@ export default function JobCardForm() {
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Color
+                    Color *
                   </label>
                   <input
                     name="color"
@@ -572,16 +727,19 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.color ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     placeholder="Color"
                   />
+                  {errors.color && (
+                    <p className="text-red-500 text-sm mt-1">{errors.color}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Card Size
+                    Card Size *
                   </label>
                   <input
                     name="cardSize"
@@ -593,16 +751,19 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.cardSize ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     placeholder="Card Size"
                   />
+                  {errors.cardSize && (
+                    <p className="text-red-500 text-sm mt-1">{errors.cardSize}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Card Quantity
+                    Card Quantity *
                   </label>
                   <input
                     name="cardQty"
@@ -613,16 +774,19 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.cardQty ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     placeholder="Card Quantity"
                   />
+                  {errors.cardQty && (
+                    <p className="text-red-500 text-sm mt-1">{errors.cardQty}</p>
+                  )}
                 </div>
 
                 <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Item Quantity
+                    Item Quantity *
                   </label>
                   <input
                     name="itemQty"
@@ -633,16 +797,19 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.itemQty ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     placeholder="Item Quantity"
                   />
+                  {errors.itemQty && (
+                    <p className="text-red-500 text-sm mt-1">{errors.itemQty}</p>
+                  )}
                 </div>
 
-                <div className="md:col-span-2">
+                <div>
                   <label className={`block text-sm font-semibold mb-2 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
-                    Description
+                    Description *
                   </label>
                   <textarea
                     name="description"
@@ -653,14 +820,17 @@ export default function JobCardForm() {
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
-                    }`}
+                    } ${errors.description ? 'border-red-500 ring-2 ring-red-500/50' : ''}`}
                     placeholder="Description"
                   />
+                  {errors.description && (
+                    <p className="text-red-500 text-sm mt-1">{errors.description}</p>
+                  )}
                 </div>
               </div>
 
               {/* Checkboxes Section */}
-              <div className="pt-4 mt-4">
+              <div className="pt-4">
                 <label className={`block text-sm font-semibold mb-4 ${
                   isDark ? 'text-purple-200' : 'text-purple-900'
                 }`}>
@@ -668,18 +838,30 @@ export default function JobCardForm() {
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   {processesList.map((processName) => (
-                    <label key={processName} className={`flex items-center gap-2 text-sm backdrop-blur-sm p-2 rounded-lg border ${
-                      isDark 
-                        ? 'bg-white/10 border-white/20 text-white' 
-                        : 'bg-white/30 border-white/30 text-purple-900'
-                    }`}>
+                    <label 
+                      key={processName} 
+                      className={`flex items-center gap-2 text-sm backdrop-blur-sm p-2 rounded-lg border ${
+                        isDark 
+                          ? 'bg-white/10 border-white/20 text-white' 
+                          : 'bg-white/30 border-white/30 text-purple-900'
+                      } ${
+                        // Add visual indicator for mutually exclusive options
+                        (exclusiveGroups.lamination.includes(processName) || 
+                         exclusiveGroups.varnish.includes(processName)) 
+                          ? 'border-yellow-400/50' 
+                          : ''
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedTasks[processName] || false}
                         onChange={() => handleTaskChange(processName)}
                         className="w-4 h-4"
+                        disabled={isTaskDisabled(processName)}
                       />
-                      <span>{processName}</span>
+                      <span className={isTaskDisabled(processName) ? 'opacity-50 line-through' : ''}>
+                        {processName}
+                      </span>
                     </label>
                   ))}
                   
@@ -788,6 +970,12 @@ export default function JobCardForm() {
                 </div>
               )}
 
+              {errors.subJobs && (
+                <div className="text-red-500 text-sm text-center mt-2">
+                  {errors.subJobs}
+                </div>
+              )}
+
               {/* Divider */}
               <div className="border-t border-white/20 my-6"></div>
 
@@ -829,6 +1017,7 @@ export default function JobCardForm() {
                   onClick={() => {
                     setShowPrintingModal(false);
                     setFormData((prev) => ({ ...prev, Printing: false }));
+                    setSelectedMachines([]);
                   }}
                   className={`text-2xl hover:opacity-70 ${
                     isDark ? 'text-white' : 'text-purple-900'
@@ -882,6 +1071,7 @@ export default function JobCardForm() {
                 onClick={() => {
                   setShowPrintingModal(false);
                   setFormData((prev) => ({ ...prev, Printing: false }));
+                  setSelectedMachines([]);
                 }}
                 className={`px-6 py-2 rounded-lg font-semibold transition-all duration-200 border backdrop-blur-sm ${
                   isDark
@@ -895,7 +1085,12 @@ export default function JobCardForm() {
                 type="button"
                 onClick={() => {
                   setShowPrintingModal(false);
-                  setFormData((prev) => ({ ...prev, Printing: true }));
+                  // Don't set Printing to false here - keep it true if machines are selected
+                  if (selectedMachines.length > 0) {
+                    setFormData((prev) => ({ ...prev, Printing: true }));
+                  } else {
+                    setFormData((prev) => ({ ...prev, Printing: false }));
+                  }
                 }}
                 className={`px-6 py-2 rounded-lg font-semibold transition-all duration-200 bg-gradient-to-r border backdrop-blur-sm ${
                   isDark
@@ -944,6 +1139,7 @@ export default function JobCardForm() {
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="e.g., HB-01"
+                  required
                 />
               </div>
               
@@ -963,53 +1159,83 @@ export default function JobCardForm() {
                         : 'bg-white/20 border-white/30 text-purple-900'
                     }`}
                     placeholder="e.g., 20x30"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Capacity:</label>
+                  <label className={`block text-sm font-semibold mb-2 ${
+                    isDark ? 'text-purple-200' : 'text-purple-900'
+                  }`}>Capacity:</label>
                   <input
                     type="text"
                     name="capacity"
                     value={machineFormData.capacity}
                     onChange={handleMachineFormChange}
-                    className="w-full px-3 py-2 text-sm text-gray-900 border border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className={`w-full px-4 py-3 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg ${
+                      isDark 
+                        ? 'bg-white/20 border-white/30 text-white' 
+                        : 'bg-white/20 border-white/30 text-purple-900'
+                    }`}
                     placeholder="e.g., 1200"
+                    required
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Description:</label>
+                <label className={`block text-sm font-semibold mb-2 ${
+                  isDark ? 'text-purple-200' : 'text-purple-900'
+                }`}>Description:</label>
                 <textarea
-                  className="w-full px-3 py-2 text-sm text-gray-900 border border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                  className={`w-full px-3 py-2 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg resize-none ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
+                      : 'bg-white/20 border-white/30 text-purple-900'
+                  }`}
                   placeholder="Short description"
-                  rows="2"
+                  rows="1"
                   name="description"
                   value={machineFormData.description}
                   onChange={handleMachineFormChange}
+                  required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Available Days:</label>
+                <label className={`block text-sm font-semibold mb-2 ${
+                  isDark ? 'text-purple-200' : 'text-purple-900'
+                }`}>Available Days:</label>
                 <input
                   type="text"
                   name="availableDays"
                   value={machineFormData.availableDays}
                   onChange={handleMachineFormChange}
-                  className="w-full px-3 py-2 text-sm text-gray-900 border border-black rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className={`w-full px-4 py-3 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg ${
+                    isDark 
+                      ? 'bg-white/20 border-white/30 text-white' 
+                      : 'bg-white/20 border-white/30 text-purple-900'
+                  }`}
                   placeholder="e.g., 5"
+                  required
                 />
               </div>
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowMachineForm(false)}
-                  className="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-200 text-sm font-medium shadow-md"
+                  className={`px-6 py-2 rounded-lg font-semibold transition-all duration-200 border backdrop-blur-sm ${
+                    isDark
+                      ? 'bg-white/20 text-white border-white/30 hover:bg-white/30'
+                      : 'bg-white/20 text-purple-900 border-white/30 hover:bg-white/30'
+                  }`}
                 >
                   CANCEL
                 </button>
                 <button
                   type="submit"
-                  className="bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-200 text-sm font-medium shadow-md"
+                  className={`px-6 py-2 rounded-lg font-semibold transition-all duration-200 bg-gradient-to-r border backdrop-blur-sm ${
+                    isDark
+                      ? 'from-purple-500 to-blue-500 text-white border-purple-400/50 hover:from-purple-600 hover:to-blue-600'
+                      : 'from-purple-500 to-blue-500 text-white border-white/30 hover:from-purple-600 hover:to-blue-600'
+                  }`}
                 >
                   SUBMIT
                 </button>

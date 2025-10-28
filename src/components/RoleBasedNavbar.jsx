@@ -224,26 +224,37 @@ export default function RoleBasedNavbar({ userRoles = [] }) {
   ];
 
   // Role → page map
-  const roleToPage = {
-    printing:     { name: "Printing", path: "/printing" },
-    cutting:      { name: "Cutting", path: "/cutting" },
-    pasting:      { name: "Pasting", path: "/pasting" },
-    lamination:   { name: "Lamination", path: "/lamination" },
-    prepress:     { name: "Pre-Press", path: "/pre_press" },
-    plates:       { name: "Plates", path: "/plates" },
-    card_cutting: { name: "Card Cutting", path: "/card_cutting" },
-    sorting:      { name: "Sorting", path: "/sorting" },
-    machineinfo:  { name: "MachineInfo", path: "/machineinfo" },
-  };
+const roleToPage = {
+  printing:       { name: "Printing", path: "/printing" },
+  pasting:        { name: "Pasting", path: "/pasting" },
+  lamination:     { name: "Lamination", path: "/lamination" },
+  prepress:       { name: "Pre-Press", path: "/pre_press" },
+  plates:         { name: "Plates", path: "/plates" },
+  card_cutting:   { name: "Card Cutting", path: "/card_cutting" },
+  sorting:        { name: "Sorting", path: "/sorting" },
+  machineinfo:    { name: "MachineInfo", path: "/machineinfo" },
+  varnish:        { name: "Varnish", path: "/varnish" },
+  joint:          { name: "Joint", path: "/joint" },
+  die_cutting:    { name: "Die Cutting", path: "/die_cutting" },
+  foil:           { name: "Foil", path: "/foil" },
+  screen_printing:{ name: "Screen Printing", path: "/screen_printing" },
+  embose:         { name: "Embose", path: "/embose" },
+  double_tape:    { name: "Double Tape", path: "/double_tape" }
+};
 
   // Worker pages - HOME ADDED AT THE BEGINNING
-  const workerPages = [
-    { name: "Home", path: "/home" }, // ← Home added for workers
-    ...roles.map(r => roleToPage[r]).filter(Boolean)
-  ];
+const workerPages = [
+  { name: "Home", path: "/home" },
+  ...roles
+    .map(r => roleToPage[r])
+    .filter(page => page !== undefined) // Sirf valid pages rakho
+    .filter((page, index, self) => 
+      self.findIndex(p => p.path === page.path) === index // Duplicates remove karo
+    )
+];
   
   // Pages to show in horizontal navbar
-  const navbarPages = isAdmin ? mainPages : workerPages.slice(0, 7);
+const navbarPages = isAdmin ? mainPages : workerPages;
   
   // All pages to show in side menu
   const allMenuPages = isAdmin ? [...mainPages, ...additionalPages] : workerPages;

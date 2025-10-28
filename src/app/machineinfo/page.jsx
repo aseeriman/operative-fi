@@ -18,6 +18,7 @@ export default function MachineInfo() {
   const [editingMachine, setEditingMachine] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false); // ✅ NEW: For form submission
   const router = useRouter();
   const { isDark } = useTheme();
 
@@ -26,7 +27,7 @@ export default function MachineInfo() {
     loadMachines();
   }, []);
 
-  // ✅ Check authentication & role
+  // ✅ Check authentication & role - UPDATED
   const checkAuth = async () => {
     try {
       setIsLoading(true);
@@ -38,7 +39,7 @@ export default function MachineInfo() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, roles")
         .eq("id", user.id)
         .single();
 
@@ -47,11 +48,24 @@ export default function MachineInfo() {
         return;
       }
 
+      // ✅ NEW: Check roles array instead of just role
+      const userRoles = Array.isArray(profile.roles) ? profile.roles : 
+                       profile.role ? [profile.role] : [];
+      
       setUserRole(profile.role);
 
-      if (profile.role !== "admin") {
-        router.push("/" + profile.role);
+      // ✅ UPDATED CONDITION:
+      // Allow if user is admin OR has machineinfo role
+      const canAccessMachineInfo = profile.role === "admin" || 
+                                  userRoles.includes("machineinfo");
+
+      if (!canAccessMachineInfo) {
+        // Redirect to first available role page or home
+        const firstRole = userRoles.length > 0 ? userRoles[0] : "home";
+        router.push("/" + firstRole);
+        return;
       }
+
     } catch (error) {
       console.error("Auth error:", error);
       router.push("/login");
@@ -84,9 +98,11 @@ export default function MachineInfo() {
     }));
   };
 
-  // ✅ Add / Update machine
+  // ✅ Add / Update machine - UPDATED with loading state
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true); // ✅ Show loading
+    
     try {
       if (editingMachine) {
         // 🔹 Update existing machine
@@ -141,6 +157,8 @@ export default function MachineInfo() {
     } catch (error) {
       console.error("Error saving machine:", error);
       alert("❌ Error: " + error.message);
+    } finally {
+      setIsSubmitting(false); // ✅ Hide loading
     }
   };
 
@@ -187,7 +205,7 @@ export default function MachineInfo() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <p className={`${isDark ? 'text-white' : 'text-purple-900'}`}>Loading...</p>
+        <p className={isDark ? 'text-white' : 'text-purple-900'}>Loading...</p>
       </div>
     );
   }
@@ -195,7 +213,7 @@ export default function MachineInfo() {
   if (!userRole) {
     return (
       <div className="flex justify-center items-center h-64">
-        <p className={`${isDark ? 'text-white' : 'text-purple-900'}`}>Redirecting...</p>
+        <p className={isDark ? 'text-white' : 'text-purple-900'}>Redirecting...</p>
       </div>
     );
   }
@@ -231,28 +249,28 @@ export default function MachineInfo() {
       <div className="relative z-10">
         <RoleBasedNavbar />
         
-        <div className="container mx-auto p-4 max-w-6xl">
+        <div className="container mx-auto p-4 max-w-4xl"> {/* ✅ Changed to max-w-4xl for compact layout */}
           {/* Page Title */}
-          <div className="flex justify-between items-center mb-6">
-            <h1 className={`text-2xl font-bold drop-shadow-lg ${
+          <div className="flex justify-between items-center mb-4"> {/* ✅ Reduced margin */}
+            <h1 className={`text-xl font-bold drop-shadow-lg ${
               isDark ? 'text-white' : 'text-purple-900'
             }`}>
               Machine Information
             </h1>
           </div>
           
-          {/* Main Content */}
-          <div className={`rounded-xl p-6 border shadow-2xl backdrop-blur-lg transition-all duration-300 mb-6 ${
+          {/* Main Content - COMPACT FORM */}
+          <div className={`rounded-xl p-4 border shadow-2xl backdrop-blur-lg transition-all duration-300 mb-4 ${
             isDark
               ? 'bg-black/40 border-purple-500/30 text-white'
               : 'bg-white/20 border-white/30 text-purple-900'
           }`}>
             
-            {/* Form Section */}
-            <form onSubmit={handleSubmit} className="space-y-6 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* ✅ COMPACT Form Section */}
+            <form onSubmit={handleSubmit} className="space-y-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> {/* ✅ Reduced gap */}
                 <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
+                  <label className={`block text-xs font-semibold mb-1 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
                     Machine Name:
@@ -262,18 +280,19 @@ export default function MachineInfo() {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className={`w-full px-4 py-3 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg ${
+                    className={`w-full px-3 py-2 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg text-sm ${
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
                     }`}
                     placeholder="e.g., HB-08"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
 
                 <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
+                  <label className={`block text-xs font-semibold mb-1 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
                     Size:
@@ -283,19 +302,20 @@ export default function MachineInfo() {
                     name="size"
                     value={formData.size}
                     onChange={handleChange}
-                    className={`w-full px-4 py-3 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg ${
+                    className={`w-full px-3 py-2 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg text-sm ${
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
                     }`}
                     placeholder="e.g., 20"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
+                  <label className={`block text-xs font-semibold mb-1 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
                     Capacity:
@@ -305,17 +325,18 @@ export default function MachineInfo() {
                     name="capacity"
                     value={formData.capacity}
                     onChange={handleChange}
-                    className={`w-full px-4 py-3 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg ${
+                    className={`w-full px-3 py-2 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg text-sm ${
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
                     }`}
                     placeholder="e.g., 1000"
+                    disabled={isSubmitting}
                   />
                 </div>
 
                 <div>
-                  <label className={`block text-sm font-semibold mb-2 ${
+                  <label className={`block text-xs font-semibold mb-1 ${
                     isDark ? 'text-purple-200' : 'text-purple-900'
                   }`}>
                     Available Days:
@@ -325,18 +346,19 @@ export default function MachineInfo() {
                     name="availableDays"
                     value={formData.availableDays}
                     onChange={handleChange}
-                    className={`w-full px-4 py-3 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg ${
+                    className={`w-full px-3 py-2 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg text-sm ${
                       isDark 
                         ? 'bg-white/20 border-white/30 text-white' 
                         : 'bg-white/20 border-white/30 text-purple-900'
                     }`}
                     placeholder="e.g., 5"
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
 
               <div>
-                <label className={`block text-sm font-semibold mb-2 ${
+                <label className={`block text-xs font-semibold mb-1 ${
                   isDark ? 'text-purple-200' : 'text-purple-900'
                 }`}>
                   Description:
@@ -345,25 +367,29 @@ export default function MachineInfo() {
                   name="description"
                   value={formData.description}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg resize-none ${
+                  className={`w-full px-3 py-2 backdrop-blur-sm border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 placeholder-white/70 shadow-lg resize-none text-sm ${
                     isDark 
                       ? 'bg-white/20 border-white/30 text-white' 
                       : 'bg-white/20 border-white/30 text-purple-900'
                   }`}
                   placeholder="Short description about the machine"
-                  rows="3"
+                  rows="2"
+                  disabled={isSubmitting}
                 />
               </div>
 
-              <div className="flex justify-end gap-4 pt-4">
+              <div className="flex justify-end gap-3 pt-2">
                 {editingMachine && (
                   <button
                     type="button"
                     onClick={cancelEdit}
-                    className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 border backdrop-blur-sm ${
-                      isDark
-                        ? 'bg-white/20 text-white border-white/30 hover:bg-white/30'
-                        : 'bg-white/20 text-purple-900 border-white/30 hover:bg-white/30'
+                    disabled={isSubmitting}
+                    className={`px-4 py-2 rounded text-xs font-semibold transition-all duration-200 border backdrop-blur-sm ${
+                      isSubmitting 
+                        ? 'bg-gray-400/50 cursor-not-allowed' 
+                        : isDark
+                          ? 'bg-white/20 text-white border-white/30 hover:bg-white/30'
+                          : 'bg-white/20 text-purple-900 border-white/30 hover:bg-white/30'
                     }`}
                   >
                     CANCEL
@@ -371,26 +397,39 @@ export default function MachineInfo() {
                 )}
                 <button
                   type="submit"
-                  className={`px-8 py-3 rounded-lg font-semibold transition-all duration-200 bg-gradient-to-r border backdrop-blur-sm ${
-                    isDark
-                      ? 'from-purple-500 to-blue-500 text-white border-purple-400/50 hover:from-purple-600 hover:to-blue-600 hover:shadow-xl'
-                      : 'from-purple-500 to-blue-500 text-white border-white/30 hover:from-purple-600 hover:to-blue-600 hover:shadow-xl'
+                  disabled={isSubmitting}
+                  className={`px-4 py-2 rounded text-xs font-semibold transition-all duration-200 bg-gradient-to-r border backdrop-blur-sm flex items-center gap-2 ${
+                    isSubmitting 
+                      ? 'from-purple-300 to-blue-300 cursor-not-allowed' 
+                      : isDark
+                        ? 'from-purple-500 to-blue-500 text-white border-purple-400/50 hover:from-purple-600 hover:to-blue-600 hover:shadow-xl'
+                        : 'from-purple-500 to-blue-500 text-white border-white/30 hover:from-purple-600 hover:to-blue-600 hover:shadow-xl'
                   }`}
                 >
-                  {editingMachine ? "UPDATE MACHINE" : "ADD MACHINE"}
+                  {isSubmitting ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {editingMachine ? "UPDATING..." : "ADDING..."}
+                    </>
+                  ) : (
+                    editingMachine ? "UPDATE MACHINE" : "ADD MACHINE"
+                  )}
                 </button>
               </div>
             </form>
 
-            {/* Machines List Section */}
-            <div className="border-t pt-6 border-white/20">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className={`text-xl font-bold ${
+            {/* Machines List Section - FIXED TABLE STRUCTURE */}
+            <div className="border-t pt-4 border-white/20">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className={`text-lg font-bold ${
                   isDark ? 'text-white' : 'text-purple-900'
                 }`}>
                   Machines List
                 </h2>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold backdrop-blur-sm border ${
+                <span className={`px-2 py-1 rounded-full text-xs font-semibold backdrop-blur-sm border ${
                   isDark 
                     ? 'bg-purple-500/30 text-purple-200 border-purple-400/50' 
                     : 'bg-white/30 text-purple-900 border-white/30'
@@ -400,7 +439,7 @@ export default function MachineInfo() {
               </div>
 
               {machines.length === 0 ? (
-                <div className={`p-8 text-center bg-white/10 rounded-lg ${
+                <div className={`p-4 text-center bg-white/10 rounded-lg text-sm ${
                   isDark ? 'text-white/70' : 'text-purple-900/70'
                 }`}>
                   No machines added yet. Add your first machine above.
@@ -409,62 +448,76 @@ export default function MachineInfo() {
                 <div className={`backdrop-blur-lg overflow-hidden rounded-lg border shadow-2xl ${
                   isDark ? 'bg-white/20 border-white/30' : 'bg-white/20 border-white/30'
                 }`}>
-                  {/* Table Header */}
-                  <div className={`grid grid-cols-5 font-semibold backdrop-blur-sm p-4 border-b ${
-                    isDark 
-                      ? 'bg-white/30 text-purple-900 border-white/30' 
-                      : 'bg-white/30 text-purple-900 border-white/30'
-                  }`}>
-                    <p>Name</p>
-                    <p>Size</p>
-                    <p>Capacity</p>
-                    <p>Available Days</p>
-                    <p>Actions</p>
-                  </div>
+                  {/* ✅ PROPER TABLE STRUCTURE WITH GOOD SPACING */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      {/* Table Header */}
+                      <thead>
+                        <tr className={`font-semibold backdrop-blur-sm text-sm ${
+                          isDark 
+                            ? 'bg-white/30 text-purple-900 border-white/30' 
+                            : 'bg-white/30 text-purple-900 border-white/30'
+                        }`}>
+                          <th className="p-2 text-left">Name</th>
+                          <th className="p-2 text-left">Size</th>
+                          <th className="p-2 text-left">Capacity</th>
+                          <th className="p-2 text-left">Available Days</th>
+                          <th className="p-2 text-left">Actions</th>
+                        </tr>
+                      </thead>
 
-                  {/* Table Rows */}
-                  <div className="max-h-96 overflow-y-auto">
-                    {machines.map((machine, index) => (
-                      <div
-                        key={machine.id}
-                        className={`grid grid-cols-5 items-center p-4 hover:bg-white/10 transition-all duration-200 border-b last:border-b-0 ${
-                          isDark ? 'border-white/20' : 'border-white/20'
-                        } ${index % 2 === 0 ? 'bg-white/5' : ''}`}
-                      >
-                        <p className={`text-sm font-medium ${
-                          isDark ? 'text-white' : 'text-purple-900'
-                        }`}>{machine.name}</p>
-                        
-                        <p className={`text-sm ${
-                          isDark ? 'text-white/90' : 'text-purple-900/90'
-                        }`}>{machine.size || '-'}</p>
-                        
-                        <p className={`text-sm ${
-                          isDark ? 'text-white/90' : 'text-purple-900/90'
-                        }`}>{machine.capacity || '-'}</p>
-                        
-                        <p className={`text-sm ${
-                          isDark ? 'text-white/90' : 'text-purple-900/90'
-                        }`}>{machine.available_days || '-'}</p>
-                        
-                        <td className="py-4 px-6">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleEdit(machine)}
-                              className={`px-4 py-2 text-sm text-white rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-xl backdrop-blur-sm`}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(machine.id)}
-                              className={`px-4 py-2 text-sm text-white rounded-lg transition-all duration-200 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-lg hover:shadow-xl backdrop-blur-sm`}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </div>
-                    ))}
+                      {/* Table Body - REMOVED block class for proper table layout */}
+                      <tbody>
+                        {machines.map((machine, index) => (
+                          <tr
+                            key={machine.id}
+                            className={`hover:bg-white/10 transition-all duration-200 text-sm ${
+                              isDark ? 'border-white/10' : 'border-white/20'
+                            } ${index % 2 === 0 ? 'bg-white/5' : 'bg-white/10'}`}
+                          >
+                            <td className={`p-2 font-medium ${
+                              isDark ? 'text-white' : 'text-purple-900'
+                            }`}>{machine.name}</td>
+                            
+                            <td className={`p-2 ${
+                              isDark ? 'text-white/90' : 'text-purple-900/90'
+                            }`}>{machine.size || '-'}</td>
+                            
+                            <td className={`p-2 ${
+                              isDark ? 'text-white/90' : 'text-purple-900/90'
+                            }`}>{machine.capacity || '-'}</td>
+                            
+                            <td className={`p-2 ${
+                              isDark ? 'text-white/90' : 'text-purple-900/90'
+                            }`}>{machine.available_days || '-'}</td>
+                            
+                            {/* ✅ FIXED: Now td is inside tr with proper spacing */}
+                            <td className="p-2">
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleEdit(machine)}
+                                  disabled={isSubmitting}
+                                  className={`px-2 py-1 text-xs text-white rounded transition-all duration-200 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 shadow-lg hover:shadow-xl backdrop-blur-sm ${
+                                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(machine.id)}
+                                  disabled={isSubmitting}
+                                  className={`px-2 py-1 text-xs text-white rounded transition-all duration-200 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-lg hover:shadow-xl backdrop-blur-sm ${
+                                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                                  }`}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
